@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #faf7f5; --bg-card: #ffffff; --bg-card-hover: #fef5f0;
+  --bg-sidebar: #fff8f5; --bg-input: #fff; --bg-modal: #ffffff;
+  --border: #f0e4dd; --border-light: #e8d5cc;
+  --text: #4a3728; --text-muted: #9a8578; --text-dim: #c4b0a4;
+  --accent: #d4847a; --accent-hover: #c46e63;
+  --green: #7cb886; --yellow: #e0b85c; --red: #d97070; --purple: #b08dc7;
+  --radius: 14px; --radius-sm: 10px;
+  --sidebar-w: 230px;
+  --shadow-sm: 0 1px 3px rgba(180,140,120,.08);
+  --shadow-md: 0 4px 12px rgba(180,140,120,.1);
+}
+html, body { height: 100%; }
+body {
+  font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.7; overflow: hidden;
+  font-size: 14px;
+}
+button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+input, textarea, select { font-family: inherit; font-size: inherit; color: var(--text); }
+a { color: var(--accent); text-decoration: none; transition: opacity .15s; }
+a:hover { opacity: .8; }
+
+/* ===== Layout ===== */
+.app { display: flex; height: 100vh; }
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--bg-sidebar);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  box-shadow: 2px 0 8px rgba(180,140,120,.04);
+}
+.sidebar-header {
+  padding: 16px 16px 12px; display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-header h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: var(--accent); }
+.sidebar-header span { font-weight: 400; color: var(--text-muted); }
+
+.nav-section { padding: 8px 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  font-size: 13px; color: var(--text-muted); transition: all .2s; cursor: pointer;
+  border-radius: 8px; margin: 1px 8px;
+}
+.nav-item:hover { background: var(--bg-card-hover); color: var(--text); }
+.nav-item.active { background: linear-gradient(135deg, #fce8e2, #fdf0eb); color: var(--accent); font-weight: 600; }
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .7; }
+
+.nav-group-title {
+  font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase;
+  padding: 16px 16px 4px; letter-spacing: .5px;
+}
+
+/* ===== Main Content ===== */
+.main { flex: 1; overflow-y: auto; padding: 32px 40px; }
+.main-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+.main-header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
+.main-header p { color: var(--text-muted); font-size: 14px; margin-top: 2px; }
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; transition: all .15s;
+}
+.btn-primary { background: linear-gradient(135deg, #d4847a, #c77b91); color: #fff; border-radius: var(--radius-sm); box-shadow: 0 2px 8px rgba(212,132,122,.25); }
+.btn-primary:hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(212,132,122,.3); }
+.btn-outline { border: 1px solid var(--border); color: var(--text-muted); border-radius: var(--radius-sm); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: rgba(212,132,122,.04); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: .9; }
+
+/* ===== Stats Cards ===== */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; transition: all .2s; box-shadow: var(--shadow-sm);
+}
+.stat-card:hover { border-color: var(--border-light); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.stat-card:nth-child(1) { border-left: 3px solid var(--accent); }
+.stat-card:nth-child(2) { border-left: 3px solid var(--purple); }
+.stat-card:nth-child(3) { border-left: 3px solid var(--green); }
+.stat-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+.stat-value { font-size: 36px; font-weight: 700; letter-spacing: -1px; color: var(--accent); }
+
+/* ===== Quick Actions ===== */
+.quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+.quick-action {
+  display: flex; align-items: center; gap: 14px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 18px;
+  cursor: pointer; transition: all .2s; box-shadow: var(--shadow-sm);
+}
+.quick-action:hover { border-color: var(--accent); background: var(--bg-card-hover); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.quick-action-icon {
+  width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; background: linear-gradient(135deg, #fce8e2, #f5dde8); border: none;
+}
+.quick-action-icon svg { width: 18px; height: 18px; color: var(--accent); }
+.quick-action-text h4 { font-size: 14px; font-weight: 600; }
+.quick-action-text p { font-size: 12px; color: var(--text-muted); }
+
+/* ===== Context List ===== */
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-header h3 { font-size: 18px; font-weight: 600; }
+.section-header a { font-size: 13px; color: var(--text-muted); }
+.section-header a:hover { color: var(--text); }
+
+.context-list { display: flex; flex-direction: column; gap: 1px; }
+.context-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 20px; cursor: pointer; transition: all .2s; margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.context-item:hover { border-color: var(--accent); background: var(--bg-card-hover); box-shadow: var(--shadow-md); }
+.context-item-left { flex: 1; min-width: 0; }
+.context-item-title { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.context-item-title h4 { font-size: 14px; font-weight: 600; }
+.context-item-desc { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 700px; }
+.tag {
+  display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
+  background: linear-gradient(135deg, #fdf0eb, #fce8e2); border: none; color: var(--accent); font-weight: 500;
+}
+.tag-type { font-size: 12px; color: var(--text-dim); }
+
+/* ===== Pages: Contexts ===== */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-btn {
+  padding: 7px 16px; border-radius: 20px; font-size: 12px; border: 1px solid var(--border);
+  color: var(--text-muted); transition: all .2s; font-weight: 500;
+}
+.filter-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(212,132,122,.04); }
+.filter-btn.active { background: linear-gradient(135deg, #d4847a, #c77b91); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(212,132,122,.2); }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(120,80,60,.2); backdrop-filter: blur(4px); display: flex;
+  align-items: center; justify-content: center; z-index: 100; opacity: 0;
+  pointer-events: none; transition: opacity .2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg-modal); border: 1px solid var(--border); border-radius: 18px;
+  width: 560px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
+  transform: translateY(10px); transition: transform .2s;
+  box-shadow: 0 20px 60px rgba(120,80,60,.15);
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { font-size: 18px; font-weight: 600; }
+.modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--text-muted); }
+.modal-close:hover { background: var(--bg-card); color: var(--text); }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
+.form-input {
+  width: 100%; padding: 11px 14px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 14px; transition: all .2s;
+}
+.form-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212,132,122,.1); }
+textarea.form-input { min-height: 100px; resize: vertical; line-height: 1.5; }
+select.form-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ===== Export Page ===== */
+.export-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+.export-option {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; cursor: pointer; transition: all .2s; box-shadow: var(--shadow-sm);
+}
+.export-option:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+.export-option.selected { border-color: var(--accent); background: linear-gradient(135deg, #fef5f0, #fdf0eb); box-shadow: 0 2px 8px rgba(212,132,122,.12); }
+.export-option h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.export-option p { font-size: 12px; color: var(--text-muted); }
+
+.export-preview {
+  background: #fdfbfa; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+}
+.export-preview pre {
+  font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px;
+  line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+  color: var(--text-muted); max-height: 400px; overflow-y: auto;
+}
+.export-actions { display: flex; gap: 8px; }
+
+/* ===== Templates Page ===== */
+.template-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.template-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; cursor: pointer; transition: all .2s; box-shadow: var(--shadow-sm);
+}
+.template-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.template-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.template-card p { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.template-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ===== Settings Page ===== */
+.settings-section { margin-bottom: 32px; }
+.settings-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.settings-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 8px; background: var(--bg-card); box-shadow: var(--shadow-sm);
+}
+.settings-item-label h4 { font-size: 14px; font-weight: 500; }
+.settings-item-label p { font-size: 12px; color: var(--text-muted); }
+
+/* ===== Detail View ===== */
+.detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.detail-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.detail-content {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; line-height: 1.8; font-size: 14px; white-space: pre-wrap;
+  box-shadow: var(--shadow-sm);
+}
+.detail-actions { display: flex; gap: 8px; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 20px; font-size: 13px; z-index: 200;
+  transform: translateY(20px); opacity: 0; transition: all .3s; pointer-events: none;
+  box-shadow: 0 8px 24px rgba(120,80,60,.12); color: var(--accent); font-weight: 500;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ===== Empty State ===== */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: .3; }
+.empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+.empty-state p { font-size: 13px; margin-bottom: 20px; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: 20px 16px; }
+  .stats, .quick-actions, .export-options, .template-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h1>Context <span>Engine</span></h1>
+    </div>
+    <div class="nav-section">
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item" data-page="contexts" onclick="navigate('contexts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        コンテキスト
+      </div>
+      <div class="nav-item" data-page="export" onclick="navigate('export')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        エクスポート
+      </div>
+      <div class="nav-item" data-page="templates" onclick="navigate('templates')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        テンプレート
+      </div>
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        設定
+      </div>
+    </div>
+
+    <div class="nav-group-title" style="display:flex;align-items:center;gap:4px;cursor:pointer" onclick="toggleGroup('private')">
+      <svg id="chevron-private" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+      プライベート
+    </div>
+    <div id="group-private" class="nav-section"></div>
+
+    <div class="nav-group-title" style="display:flex;align-items:center;gap:4px;cursor:pointer" onclick="toggleGroup('work')">
+      <svg id="chevron-work" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+      仕事
+    </div>
+    <div id="group-work" class="nav-section"></div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main" id="main-content"></main>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Data =====
+const CATEGORIES = {
+  private: [
+    { id: 'travel', name: '旅行', icon: '✈️' },
+    { id: 'food', name: '食事・グルメ', icon: '🍽️' },
+    { id: 'relationships', name: '人間関係', icon: '👥' },
+    { id: 'hobbies', name: '趣味', icon: '🎨' },
+    { id: 'health', name: '健康', icon: '❤️' },
+    { id: 'finance', name: '資産・お金', icon: '💰' },
+    { id: 'lifestyle', name: 'ライフスタイル', icon: '🏠' },
+    { id: 'private-other', name: 'その他', icon: '•••' },
+  ],
+  work: [
+    { id: 'career', name: '職歴', icon: '💼' },
+    { id: 'current-job', name: '現在の仕事', icon: '🏢' },
+    { id: 'skills', name: 'スキル', icon: '🛠️' },
+    { id: 'projects', name: 'プロジェクト', icon: '📁' },
+    { id: 'goals', name: '目標', icon: '🎯' },
+    { id: 'education', name: '学歴・学習', icon: '📚' },
+    { id: 'networking', name: 'ネットワーキング', icon: '🤝' },
+    { id: 'work-other', name: 'その他', icon: '•••' },
+  ]
+};
+
+const ALL_CATEGORIES = [...CATEGORIES.private, ...CATEGORIES.work];
+
+const TEMPLATES = [
+  { id: 't1', name: '自己紹介テンプレート', desc: '基本的なプロフィール情報を構造化', type: 'private',
+    fields: [
+      { label: '名前/ハンドルネーム', key: 'name' },
+      { label: '年代・性別', key: 'age' },
+      { label: '居住地', key: 'location' },
+      { label: '家族構成', key: 'family' },
+      { label: '価値観・大切にしていること', key: 'values' },
+    ]},
+  { id: 't2', name: 'スキルマップ', desc: '技術スキルと経験レベルを整理', type: 'work',
+    fields: [
+      { label: 'メインスキル', key: 'main' },
+      { label: 'サブスキル', key: 'sub' },
+      { label: '学習中', key: 'learning' },
+      { label: '経験年数', key: 'years' },
+      { label: '得意領域', key: 'strength' },
+    ]},
+  { id: 't3', name: 'キャリアサマリー', desc: '職歴と実績を簡潔にまとめる', type: 'work',
+    fields: [
+      { label: '現在のポジション', key: 'position' },
+      { label: '経歴サマリー', key: 'summary' },
+      { label: '主な実績', key: 'achievements' },
+      { label: '強み', key: 'strengths' },
+      { label: '今後の方向性', key: 'direction' },
+    ]},
+  { id: 't4', name: 'ライフスタイル', desc: '日常の過ごし方や好みを記録', type: 'private',
+    fields: [
+      { label: '1日のルーティン', key: 'routine' },
+      { label: '好きなこと', key: 'likes' },
+      { label: '苦手なこと', key: 'dislikes' },
+      { label: 'こだわり', key: 'preferences' },
+      { label: '休日の過ごし方', key: 'holidays' },
+    ]},
+  { id: 't5', name: 'プロジェクト概要', desc: 'プロジェクトの詳細を構造化して記録', type: 'work',
+    fields: [
+      { label: 'プロジェクト名', key: 'name' },
+      { label: '概要', key: 'overview' },
+      { label: '使用技術・ツール', key: 'tech' },
+      { label: '役割', key: 'role' },
+      { label: '成果・学び', key: 'outcome' },
+    ]},
+  { id: 't6', name: '趣味・興味', desc: '趣味や関心事を整理', type: 'private',
+    fields: [
+      { label: '趣味', key: 'hobbies' },
+      { label: 'ハマっていること', key: 'current' },
+      { label: '好きな食べ物・飲み物', key: 'food' },
+      { label: '好きなエンタメ', key: 'entertainment' },
+      { label: '行きたい場所', key: 'places' },
+    ]},
+  { id: 't7', name: '目標・ビジョン', desc: '短期〜長期の目標を整理', type: 'work',
+    fields: [
+      { label: '3ヶ月目標', key: 'short' },
+      { label: '1年目標', key: 'mid' },
+      { label: '3年ビジョン', key: 'long' },
+      { label: '達成のためにやること', key: 'actions' },
+      { label: '障壁・課題', key: 'challenges' },
+    ]},
+  { id: 't8', name: 'SNS発信プロフィール', desc: 'SNS用の自己紹介文を構造化', type: 'work',
+    fields: [
+      { label: 'ポジション（何者か）', key: 'position' },
+      { label: 'ターゲット', key: 'target' },
+      { label: '実績・数字', key: 'results' },
+      { label: '発信テーマ', key: 'themes' },
+      { label: '独自性', key: 'uniqueness' },
+    ]},
+];
+
+const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+
+// ===== State =====
+let state = {
+  contexts: [],
+  currentPage: 'dashboard',
+  currentFilter: 'all',
+  currentCategory: null,
+  exportFormat: 'markdown',
+  exportScope: 'all',
+};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('context-engine');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.contexts = parsed.contexts || [];
+    }
+  } catch(e) { console.error('Load error:', e); }
+}
+
+function saveState() {
+  localStorage.setItem('context-engine', JSON.stringify({ contexts: state.contexts }));
+}
+
+// ===== Navigation =====
+function navigate(page, categoryId) {
+  state.currentPage = page;
+  state.currentCategory = categoryId || null;
+  state.currentFilter = 'all';
+  renderSidebar();
+  renderMain();
+}
+
+function toggleGroup(group) {
+  const el = document.getElementById(`group-${group}`);
+  const chevron = document.getElementById(`chevron-${group}`);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    chevron.style.transform = 'rotate(0deg)';
+  } else {
+    el.style.display = 'none';
+    chevron.style.transform = 'rotate(-90deg)';
+  }
+}
+
+function renderSidebar() {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active',
+      el.dataset.page === state.currentPage && !state.currentCategory
+    );
+  });
+
+  ['private', 'work'].forEach(group => {
+    const container = document.getElementById(`group-${group}`);
+    container.innerHTML = CATEGORIES[group].map(cat => `
+      <div class="nav-item ${state.currentCategory === cat.id ? 'active' : ''}"
+           onclick="navigate('contexts', '${cat.id}')">
+        <span style="font-size:14px;width:16px;text-align:center">${cat.icon}</span>
+        ${cat.name}
+      </div>
+    `).join('');
+  });
+}
+
+// ===== Render Main =====
+function renderMain() {
+  const main = document.getElementById('main-content');
+  switch(state.currentPage) {
+    case 'dashboard': main.innerHTML = renderDashboard(); break;
+    case 'contexts': main.innerHTML = renderContexts(); break;
+    case 'export': main.innerHTML = renderExport(); break;
+    case 'templates': main.innerHTML = renderTemplates(); break;
+    case 'settings': main.innerHTML = renderSettings(); break;
+    case 'detail': main.innerHTML = renderDetail(); break;
+  }
+}
+
+// ===== Dashboard =====
+function renderDashboard() {
+  const total = state.contexts.length;
+  const privateCount = state.contexts.filter(c => getGroupForCategory(c.category) === 'private').length;
+  const workCount = state.contexts.filter(c => getGroupForCategory(c.category) === 'work').length;
+  const recent = [...state.contexts].sort((a,b) => b.updatedAt - a.updatedAt).slice(0, 5);
+
+  return `
+    <div class="main-header">
+      <div><h2>ダッシュボード</h2><p>コンテキストの概要</p></div>
+      <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
+    </div>
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">合計コンテキスト</div><div class="stat-value">${total}</div></div>
+      <div class="stat-card"><div class="stat-label">プライベート</div><div class="stat-value">${privateCount}</div></div>
+      <div class="stat-card"><div class="stat-label">仕事</div><div class="stat-value">${workCount}</div></div>
+    </div>
+    <div class="quick-actions">
+      <div class="quick-action" onclick="openAddModal()">
+        <div class="quick-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+        <div class="quick-action-text"><h4>コンテキスト追加</h4><p>新しいコンテキストを登録</p></div>
+      </div>
+      <div class="quick-action" onclick="navigate('export')">
+        <div class="quick-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+        <div class="quick-action-text"><h4>エクスポート</h4><p>AIプロンプト用にエクスポート</p></div>
+      </div>
+      <div class="quick-action" onclick="navigate('templates')">
+        <div class="quick-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
+        <div class="quick-action-text"><h4>テンプレート</h4><p>テンプレートを閲覧・作成</p></div>
+      </div>
+    </div>
+    ${recent.length ? `
+      <div class="section-header">
+        <h3>最近のコンテキスト</h3>
+        <a href="#" onclick="navigate('contexts'); return false;">すべて表示</a>
+      </div>
+      <div class="context-list">
+        ${recent.map(c => renderContextItem(c)).join('')}
+      </div>
+    ` : `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <h3>コンテキストがありません</h3>
+        <p>「コンテキスト追加」から自分の情報を登録しましょう</p>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 最初のコンテキストを追加</button>
+      </div>
+    `}
+  `;
+}
+
+function renderContextItem(c) {
+  const cat = ALL_CATEGORIES.find(cat => cat.id === c.category);
+  const group = getGroupForCategory(c.category);
+  const groupLabel = group === 'private' ? 'プライベート' : '仕事';
+  return `
+    <div class="context-item" onclick="viewDetail('${c.id}')">
+      <div class="context-item-left">
+        <div class="context-item-title">
+          <h4>${esc(c.title)}</h4>
+          <span class="tag">${cat ? cat.name : c.category}</span>
+        </div>
+        <div class="context-item-desc">${esc(c.content.substring(0, 120))}</div>
+      </div>
+      <span class="tag-type">${groupLabel}</span>
+    </div>
+  `;
+}
+
+// ===== Contexts Page =====
+function renderContexts() {
+  let filtered = [...state.contexts];
+  const title = state.currentCategory
+    ? ALL_CATEGORIES.find(c => c.id === state.currentCategory)?.name || 'コンテキスト'
+    : 'コンテキスト';
+
+  if (state.currentCategory) {
+    filtered = filtered.filter(c => c.category === state.currentCategory);
+  } else if (state.currentFilter !== 'all') {
+    filtered = filtered.filter(c => getGroupForCategory(c.category) === state.currentFilter);
+  }
+
+  filtered.sort((a,b) => b.updatedAt - a.updatedAt);
+
+  return `
+    <div class="main-header">
+      <div><h2>${title}</h2><p>${filtered.length}件のコンテキスト</p></div>
+      <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
+    </div>
+    ${!state.currentCategory ? `
+      <div class="filter-bar">
+        <button class="filter-btn ${state.currentFilter === 'all' ? 'active' : ''}" onclick="setFilter('all')">すべて</button>
+        <button class="filter-btn ${state.currentFilter === 'private' ? 'active' : ''}" onclick="setFilter('private')">プライベート</button>
+        <button class="filter-btn ${state.currentFilter === 'work' ? 'active' : ''}" onclick="setFilter('work')">仕事</button>
+      </div>
+    ` : ''}
+    ${filtered.length ? `
+      <div class="context-list">${filtered.map(c => renderContextItem(c)).join('')}</div>
+    ` : `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <h3>コンテキストがありません</h3>
+        <p>このカテゴリにはまだコンテキストが登録されていません</p>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ コンテキストを追加</button>
+      </div>
+    `}
+  `;
+}
+
+function setFilter(f) { state.currentFilter = f; renderMain(); }
+
+// ===== Detail View =====
+function viewDetail(id) {
+  state.currentPage = 'detail';
+  state.viewingId = id;
+  renderMain();
+}
+
+function renderDetail() {
+  const c = state.contexts.find(x => x.id === state.viewingId);
+  if (!c) return '<p>見つかりません</p>';
+  const cat = ALL_CATEGORIES.find(cat => cat.id === c.category);
+  const group = getGroupForCategory(c.category);
+  const date = new Date(c.updatedAt).toLocaleDateString('ja-JP');
+
+  return `
+    <div style="margin-bottom:16px">
+      <a href="#" onclick="navigate('contexts'); return false;" style="font-size:13px;color:var(--text-muted)">← コンテキスト一覧</a>
+    </div>
+    <div class="detail-header">
+      <div>
+        <h2 style="font-size:24px">${esc(c.title)}</h2>
+        <div class="detail-meta" style="margin-top:8px">
+          <span class="tag">${cat ? cat.name : c.category}</span>
+          <span class="tag">${group === 'private' ? 'プライベート' : '仕事'}</span>
+          ${c.priority ? `<span class="tag">優先度: ${PRIORITY_LABELS[c.priority] || c.priority}</span>` : ''}
+          <span class="tag">更新: ${date}</span>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn btn-outline btn-sm" onclick="openEditModal('${c.id}')">編集</button>
+        <button class="btn btn-outline btn-sm" onclick="exportSingle('${c.id}')">エクスポート</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="deleteContext('${c.id}')">削除</button>
+      </div>
+    </div>
+    ${c.tags?.length ? `<div style="display:flex;gap:4px;margin-bottom:16px">${c.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+    <div class="detail-content">${esc(c.content)}</div>
+  `;
+}
+
+// ===== Export Page =====
+function renderExport() {
+  const preview = generateExport(state.exportFormat, state.exportScope);
+  return `
+    <div class="main-header">
+      <div><h2>エクスポート</h2><p>AIプロンプト用にコンテキストをエクスポート</p></div>
+    </div>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">フォーマット</h3>
+    <div class="export-options">
+      <div class="export-option ${state.exportFormat === 'markdown' ? 'selected' : ''}" onclick="setExportFormat('markdown')">
+        <h4>Markdown</h4><p>見出し・リスト形式。Claude / ChatGPT向き</p>
+      </div>
+      <div class="export-option ${state.exportFormat === 'xml' ? 'selected' : ''}" onclick="setExportFormat('xml')">
+        <h4>XML</h4><p>タグ構造化形式。Claude推奨フォーマット</p>
+      </div>
+      <div class="export-option ${state.exportFormat === 'json' ? 'selected' : ''}" onclick="setExportFormat('json')">
+        <h4>JSON</h4><p>プログラム連携・API向き</p>
+      </div>
+      <div class="export-option ${state.exportFormat === 'plain' ? 'selected' : ''}" onclick="setExportFormat('plain')">
+        <h4>プレーンテキスト</h4><p>シンプルなテキスト形式</p>
+      </div>
+    </div>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">範囲</h3>
+    <div class="filter-bar" style="margin-bottom:20px">
+      <button class="filter-btn ${state.exportScope === 'all' ? 'active' : ''}" onclick="setExportScope('all')">すべて</button>
+      <button class="filter-btn ${state.exportScope === 'private' ? 'active' : ''}" onclick="setExportScope('private')">プライベートのみ</button>
+      <button class="filter-btn ${state.exportScope === 'work' ? 'active' : ''}" onclick="setExportScope('work')">仕事のみ</button>
+    </div>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">プレビュー</h3>
+    <div class="export-preview"><pre id="export-preview">${esc(preview)}</pre></div>
+    <div class="export-actions">
+      <button class="btn btn-primary" onclick="copyExport()">クリップボードにコピー</button>
+      <button class="btn btn-outline" onclick="downloadExport()">ファイルとしてダウンロード</button>
+    </div>
+  `;
+}
+
+function setExportFormat(f) { state.exportFormat = f; renderMain(); }
+function setExportScope(s) { state.exportScope = s; renderMain(); }
+
+function generateExport(format, scope) {
+  let contexts = [...state.contexts];
+  if (scope === 'private') contexts = contexts.filter(c => getGroupForCategory(c.category) === 'private');
+  if (scope === 'work') contexts = contexts.filter(c => getGroupForCategory(c.category) === 'work');
+  if (!contexts.length) return '(コンテキストがありません)';
+
+  const grouped = {};
+  contexts.forEach(c => {
+    const cat = ALL_CATEGORIES.find(cat => cat.id === c.category);
+    const key = cat ? cat.name : c.category;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(c);
+  });
+
+  switch(format) {
+    case 'markdown': return exportMarkdown(grouped);
+    case 'xml': return exportXml(grouped);
+    case 'json': return exportJson(contexts);
+    case 'plain': return exportPlain(grouped);
+    default: return '';
+  }
+}
+
+function exportMarkdown(grouped) {
+  let out = '# My Context\n\n';
+  for (const [cat, items] of Object.entries(grouped)) {
+    out += `## ${cat}\n\n`;
+    items.forEach(c => {
+      out += `### ${c.title}\n`;
+      if (c.tags?.length) out += `タグ: ${c.tags.join(', ')}\n`;
+      if (c.priority) out += `優先度: ${PRIORITY_LABELS[c.priority]}\n`;
+      out += `\n${c.content}\n\n`;
+    });
+  }
+  return out.trim();
+}
+
+function exportXml(grouped) {
+  let out = '<context>\n';
+  for (const [cat, items] of Object.entries(grouped)) {
+    out += `  <category name="${cat}">\n`;
+    items.forEach(c => {
+      out += `    <item title="${escXml(c.title)}"`;
+      if (c.priority) out += ` priority="${c.priority}"`;
+      out += '>\n';
+      if (c.tags?.length) out += `      <tags>${c.tags.join(', ')}</tags>\n`;
+      out += `      <content>${escXml(c.content)}</content>\n`;
+      out += `    </item>\n`;
+    });
+    out += `  </category>\n`;
+  }
+  out += '</context>';
+  return out;
+}
+
+function exportJson(contexts) {
+  const data = contexts.map(c => ({
+    title: c.title,
+    category: c.category,
+    tags: c.tags || [],
+    priority: c.priority || null,
+    content: c.content,
+  }));
+  return JSON.stringify(data, null, 2);
+}
+
+function exportPlain(grouped) {
+  let out = '';
+  for (const [cat, items] of Object.entries(grouped)) {
+    out += `【${cat}】\n`;
+    items.forEach(c => {
+      out += `■ ${c.title}\n${c.content}\n\n`;
+    });
+  }
+  return out.trim();
+}
+
+function copyExport() {
+  const text = generateExport(state.exportFormat, state.exportScope);
+  navigator.clipboard.writeText(text).then(() => showToast('クリップボードにコピーしました'));
+}
+
+function downloadExport() {
+  const text = generateExport(state.exportFormat, state.exportScope);
+  const ext = { markdown: 'md', xml: 'xml', json: 'json', plain: 'txt' }[state.exportFormat];
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `context-export.${ext}`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('ダウンロードしました');
+}
+
+function exportSingle(id) {
+  const c = state.contexts.find(x => x.id === id);
+  if (!c) return;
+  const text = `# ${c.title}\n\n${c.content}`;
+  navigator.clipboard.writeText(text).then(() => showToast('コピーしました'));
+}
+
+// ===== Templates Page =====
+function renderTemplates() {
+  return `
+    <div class="main-header">
+      <div><h2>テンプレート</h2><p>テンプレートからコンテキストを作成</p></div>
+    </div>
+    <div class="template-grid">
+      ${TEMPLATES.map(t => `
+        <div class="template-card" onclick="useTemplate('${t.id}')">
+          <h4>${t.name}</h4>
+          <p>${t.desc}</p>
+          <div class="template-tags">
+            <span class="tag">${t.type === 'private' ? 'プライベート' : '仕事'}</span>
+            <span class="tag">${t.fields.length}項目</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function useTemplate(id) {
+  const tpl = TEMPLATES.find(t => t.id === id);
+  if (!tpl) return;
+  const content = tpl.fields.map(f => `【${f.label}】\n`).join('\n');
+  openAddModal(null, { title: tpl.name, content, type: tpl.type });
+}
+
+// ===== Settings Page =====
+function renderSettings() {
+  return `
+    <div class="main-header">
+      <div><h2>設定</h2><p>アプリの設定</p></div>
+    </div>
+    <div class="settings-section">
+      <h3>データ管理</h3>
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <h4>データのエクスポート</h4>
+          <p>すべてのコンテキストをJSONファイルとしてバックアップ</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="exportAllData()">エクスポート</button>
+      </div>
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <h4>データのインポート</h4>
+          <p>JSONファイルからコンテキストを復元</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="importData()">インポート</button>
+      </div>
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <h4>すべてのデータを削除</h4>
+          <p>すべてのコンテキストを完全に削除します（元に戻せません）</p>
+        </div>
+        <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="clearAllData()">削除</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>情報</h3>
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <h4>Context Engine</h4>
+          <p>AIエージェントに「自分」を正しく伝えるためのコンテキスト管理ツール</p>
+        </div>
+        <span style="font-size:13px;color:var(--text-muted)">v1.0</span>
+      </div>
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <h4>登録コンテキスト数</h4>
+          <p>現在のデータ量</p>
+        </div>
+        <span style="font-size:13px;color:var(--text-muted)">${state.contexts.length}件</span>
+      </div>
+    </div>
+  `;
+}
+
+function exportAllData() {
+  const data = JSON.stringify({ version: 1, contexts: state.contexts }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `context-engine-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('バックアップをダウンロードしました');
+}
+
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.contexts && Array.isArray(data.contexts)) {
+          state.contexts = data.contexts;
+          saveState();
+          renderMain();
+          showToast(`${data.contexts.length}件のコンテキストをインポートしました`);
+        }
+      } catch(e) { showToast('インポートに失敗しました'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function clearAllData() {
+  if (!confirm('すべてのデータを削除しますか？この操作は元に戻せません。')) return;
+  state.contexts = [];
+  saveState();
+  renderMain();
+  showToast('すべてのデータを削除しました');
+}
+
+// ===== Modal =====
+function openAddModal(editId, prefill) {
+  const c = editId ? state.contexts.find(x => x.id === editId) : null;
+  const isEdit = !!c;
+  const title = isEdit ? 'コンテキストを編集' : '新規コンテキスト';
+
+  const categoryOptions = ['private', 'work'].map(group => {
+    const label = group === 'private' ? 'プライベート' : '仕事';
+    const opts = CATEGORIES[group].map(cat =>
+      `<option value="${cat.id}" ${(c?.category || (prefill?.type === group ? CATEGORIES[group][0].id : '')) === cat.id ? 'selected' : ''}>${cat.icon} ${cat.name}</option>`
+    ).join('');
+    return `<optgroup label="${label}">${opts}</optgroup>`;
+  }).join('');
+
+  document.getElementById('modal').innerHTML = `
+    <div class="modal-header">
+      <h3>${title}</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>タイトル</label>
+        <input class="form-input" id="ctx-title" value="${esc(c?.title || prefill?.title || '')}" placeholder="例: 技術スキル">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>カテゴリ</label>
+          <select class="form-input" id="ctx-category">${categoryOptions}</select>
+        </div>
+        <div class="form-group">
+          <label>優先度</label>
+          <select class="form-input" id="ctx-priority">
+            <option value="">未設定</option>
+            <option value="high" ${c?.priority === 'high' ? 'selected' : ''}>高</option>
+            <option value="medium" ${c?.priority === 'medium' ? 'selected' : ''}>中</option>
+            <option value="low" ${c?.priority === 'low' ? 'selected' : ''}>低</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>タグ（カンマ区切り）</label>
+        <input class="form-input" id="ctx-tags" value="${esc(c?.tags?.join(', ') || '')}" placeholder="例: AI, 業務効率化">
+      </div>
+      <div class="form-group">
+        <label>内容</label>
+        <textarea class="form-input" id="ctx-content" rows="8" placeholder="自由にテキストを記入してください">${esc(c?.content || prefill?.content || '')}</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveContext('${editId || ''}')">${isEdit ? '更新' : '追加'}</button>
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('ctx-title').focus(), 100);
+}
+
+function openEditModal(id) { openAddModal(id); }
+
+function saveContext(editId) {
+  const title = document.getElementById('ctx-title').value.trim();
+  const category = document.getElementById('ctx-category').value;
+  const priority = document.getElementById('ctx-priority').value;
+  const tags = document.getElementById('ctx-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const content = document.getElementById('ctx-content').value.trim();
+
+  if (!title) { showToast('タイトルを入力してください'); return; }
+  if (!content) { showToast('内容を入力してください'); return; }
+
+  if (editId) {
+    const idx = state.contexts.findIndex(c => c.id === editId);
+    if (idx >= 0) {
+      state.contexts[idx] = { ...state.contexts[idx], title, category, priority, tags, content, updatedAt: Date.now() };
+    }
+  } else {
+    state.contexts.push({
+      id: 'ctx_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+      title, category, priority, tags, content,
+      createdAt: Date.now(), updatedAt: Date.now()
+    });
+  }
+
+  saveState();
+  closeModal();
+  renderMain();
+  renderSidebar();
+  showToast(editId ? '更新しました' : '追加しました');
+}
+
+function deleteContext(id) {
+  if (!confirm('このコンテキストを削除しますか？')) return;
+  state.contexts = state.contexts.filter(c => c.id !== id);
+  saveState();
+  navigate('contexts');
+  showToast('削除しました');
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === e.currentTarget) closeModal(); }
+
+// ===== Utilities =====
+function getGroupForCategory(catId) {
+  if (CATEGORIES.private.some(c => c.id === catId)) return 'private';
+  if (CATEGORIES.work.some(c => c.id === catId)) return 'work';
+  return 'private';
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escXml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openAddModal(); }
+});
+
+// ===== Init =====
+loadState();
+renderSidebar();
+renderMain();
+</script>
+</body>
+</html>
