@@ -244,6 +244,19 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 }
 .toast.show { transform: translateY(0); opacity: 1; }
 
+/* ===== Backup Banner ===== */
+.backup-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(135deg, #fff5e6, #fff0db); border: 1px solid #f0d9a8;
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px;
+}
+.backup-banner.urgent { background: linear-gradient(135deg, #fde8e8, #fce0e0); border-color: #f0b8b8; }
+.backup-banner-left { display: flex; align-items: center; gap: 10px; }
+.backup-banner-icon { font-size: 18px; }
+.backup-banner-text h4 { font-size: 13px; font-weight: 600; color: var(--text); }
+.backup-banner-text p { font-size: 12px; color: var(--text-muted); }
+.backup-banner-actions { display: flex; gap: 8px; align-items: center; }
+
 /* ===== Empty State ===== */
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: .3; }
@@ -629,16 +642,73 @@ function loadState() {
     if (saved) {
       const parsed = JSON.parse(saved);
       state.contexts = parsed.contexts || [];
+      state.lastBackup = parsed.lastBackup || null;
+      state.lastModified = parsed.lastModified || Date.now();
     } else {
       // 初回: サンプルデータを登録
       state.contexts = SEED_DATA;
+      state.lastBackup = null;
+      state.lastModified = Date.now();
       saveState();
     }
   } catch(e) { console.error('Load error:', e); }
 }
 
 function saveState() {
-  localStorage.setItem('context-engine', JSON.stringify({ contexts: state.contexts }));
+  state.lastModified = Date.now();
+  localStorage.setItem('context-engine', JSON.stringify({
+    contexts: state.contexts,
+    lastBackup: state.lastBackup,
+    lastModified: state.lastModified,
+  }));
+}
+
+function getBackupStatus() {
+  if (!state.lastBackup) return { level: 'urgent', label: 'まだバックアップしていません', days: null };
+  const days = Math.floor((Date.now() - state.lastBackup) / (1000 * 60 * 60 * 24));
+  const modified = state.lastModified > state.lastBackup;
+  if (days >= 14 || (modified && days >= 7)) return { level: 'urgent', label: `${days}日前にバックアップ（未保存の変更あり）`, days };
+  if (days >= 7 || modified) return { level: 'warn', label: `${days}日前にバックアップ${modified ? '（未保存の変更あり）' : ''}`, days };
+  return { level: 'ok', label: `${days}日前にバックアップ済み`, days };
+}
+
+function renderBackupBanner() {
+  const status = getBackupStatus();
+  if (status.level === 'ok') return '';
+  const isUrgent = status.level === 'urgent';
+  return `
+    <div class="backup-banner ${isUrgent ? 'urgent' : ''}">
+      <div class="backup-banner-left">
+        <span class="backup-banner-icon">${isUrgent ? '🔴' : '🟡'}</span>
+        <div class="backup-banner-text">
+          <h4>${isUrgent ? 'バックアップを取りましょう' : 'バックアップの確認'}</h4>
+          <p>${status.label}</p>
+        </div>
+      </div>
+      <div class="backup-banner-actions">
+        <button class="btn btn-outline btn-sm" onclick="dismissBackupBanner()">あとで</button>
+        <button class="btn btn-primary btn-sm" onclick="backupNow()">今すぐバックアップ</button>
+      </div>
+    </div>
+  `;
+}
+
+function backupNow() {
+  const data = JSON.stringify({ version: 1, contexts: state.contexts, lastBackup: Date.now() }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `context-engine-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  state.lastBackup = Date.now();
+  saveState();
+  renderMain();
+  showToast('バックアップを保存しました');
+}
+
+function dismissBackupBanner() {
+  document.querySelector('.backup-banner')?.remove();
 }
 
 // ===== Navigation =====
@@ -706,6 +776,7 @@ function renderDashboard() {
       <div><h2>ダッシュボード</h2><p>コンテキストの概要</p></div>
       <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
     </div>
+    ${renderBackupBanner()}
     <div class="stats">
       <div class="stat-card"><div class="stat-label">合計コンテキスト</div><div class="stat-value">${total}</div></div>
       <div class="stat-card"><div class="stat-label">プライベート</div><div class="stat-value">${privateCount}</div></div>
@@ -1019,20 +1090,21 @@ function renderSettings() {
       <div><h2>設定</h2><p>アプリの設定</p></div>
     </div>
     <div class="settings-section">
-      <h3>データ管理</h3>
+      <h3>バックアップ</h3>
+      ${renderBackupStatusCard()}
       <div class="settings-item">
         <div class="settings-item-label">
-          <h4>データのエクスポート</h4>
-          <p>すべてのコンテキストをJSONファイルとしてバックアップ</p>
+          <h4>今すぐバックアップ</h4>
+          <p>すべてのコンテキストをJSONファイルとしてダウンロード</p>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="exportAllData()">エクスポート</button>
+        <button class="btn btn-primary btn-sm" onclick="backupNow()">バックアップ</button>
       </div>
       <div class="settings-item">
         <div class="settings-item-label">
-          <h4>データのインポート</h4>
-          <p>JSONファイルからコンテキストを復元</p>
+          <h4>バックアップから復元</h4>
+          <p>JSONファイルからワンクリックで復元</p>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="importData()">インポート</button>
+        <button class="btn btn-outline btn-sm" onclick="importData()">復元</button>
       </div>
       <div class="settings-item">
         <div class="settings-item-label">
@@ -1062,15 +1134,25 @@ function renderSettings() {
   `;
 }
 
+function renderBackupStatusCard() {
+  const status = getBackupStatus();
+  const colors = { ok: 'var(--green)', warn: 'var(--yellow)', urgent: 'var(--red)' };
+  const icons = { ok: '✅', warn: '🟡', urgent: '🔴' };
+  const lastDate = state.lastBackup
+    ? new Date(state.lastBackup).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'なし';
+  return `
+    <div class="settings-item" style="border-left:3px solid ${colors[status.level]}">
+      <div class="settings-item-label">
+        <h4>${icons[status.level]} バックアップ状態: ${status.level === 'ok' ? '最新' : status.level === 'warn' ? '要確認' : '未バックアップ'}</h4>
+        <p>最終バックアップ: ${lastDate}</p>
+      </div>
+    </div>
+  `;
+}
+
 function exportAllData() {
-  const data = JSON.stringify({ version: 1, contexts: state.contexts }, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `context-engine-backup-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  showToast('バックアップをダウンロードしました');
+  backupNow();
 }
 
 function importData() {
@@ -1086,9 +1168,11 @@ function importData() {
         const data = JSON.parse(ev.target.result);
         if (data.contexts && Array.isArray(data.contexts)) {
           state.contexts = data.contexts;
+          state.lastBackup = Date.now();
           saveState();
+          renderSidebar();
           renderMain();
-          showToast(`${data.contexts.length}件のコンテキストをインポートしました`);
+          showToast(`${data.contexts.length}件のコンテキストを復元しました`);
         }
       } catch(e) { showToast('インポートに失敗しました'); }
     };
