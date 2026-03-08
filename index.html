@@ -915,6 +915,13 @@ function loadState() {
       state.contexts = parsed.contexts || [];
       state.lastBackup = parsed.lastBackup || null;
       state.lastModified = parsed.lastModified || Date.now();
+      // 新しいシードデータがあれば自動追加
+      const existingIds = new Set(state.contexts.map(c => c.id));
+      const newSeeds = SEED_DATA.filter(s => !existingIds.has(s.id));
+      if (newSeeds.length > 0) {
+        state.contexts.push(...newSeeds);
+        saveState();
+      }
     } else {
       // 初回: サンプルデータを登録
       state.contexts = SEED_DATA;
