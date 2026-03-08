@@ -258,6 +258,44 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .backup-banner-text p { font-size: 12px; color: var(--text-muted); }
 .backup-banner-actions { display: flex; gap: 8px; align-items: center; }
 
+/* ===== Search Bar ===== */
+.search-bar {
+  position: relative; margin-bottom: 20px;
+}
+.search-bar input {
+  width: 100%; padding: 11px 14px 11px 40px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 14px; transition: all .2s;
+}
+.search-bar input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212,132,122,.1); }
+.search-bar svg {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--text-dim); pointer-events: none;
+}
+.search-clear {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 14px; color: var(--text-muted); cursor: pointer;
+}
+.search-clear:hover { background: var(--bg-card-hover); color: var(--text); }
+
+/* ===== Drag & Drop ===== */
+.context-item.dragging { opacity: .4; }
+.context-item.drag-over { border-top: 2px solid var(--accent); margin-top: -2px; }
+.context-item .drag-handle {
+  cursor: grab; color: var(--text-dim); padding: 4px; margin-right: 8px; display: flex; align-items: center;
+  opacity: .4; transition: opacity .2s;
+}
+.context-item:hover .drag-handle { opacity: 1; }
+.context-item .drag-handle:active { cursor: grabbing; }
+
+/* ===== Copy All Button ===== */
+.copy-all-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid var(--border); color: var(--text-muted); transition: all .15s;
+}
+.copy-all-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(212,132,122,.04); }
+
 /* ===== Empty State ===== */
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: .3; }
@@ -433,6 +471,7 @@ let state = {
   currentCategory: null,
   exportFormat: 'markdown',
   exportScope: 'all',
+  searchQuery: '',
 };
 
 const SEED_DATA = [
@@ -1053,7 +1092,13 @@ function renderDashboard() {
   return `
     <div class="main-header">
       <div><h2>ダッシュボード</h2><p>コンテキストの概要</p></div>
-      <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
+      <div style="display:flex;gap:8px">
+        <button class="copy-all-btn" onclick="copyAllContexts()" title="全コンテキストをクリップボードにコピー">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          全コピー
+        </button>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
+      </div>
     </div>
     ${renderBackupBanner()}
     <div class="stats">
@@ -1099,8 +1144,12 @@ function renderContextItem(c) {
   const group = getGroupForCategory(c.category);
   const groupLabel = group === 'private' ? 'プライベート' : '仕事';
   return `
-    <div class="context-item" onclick="viewDetail('${c.id}')">
-      <div class="context-item-left">
+    <div class="context-item" draggable="true" data-id="${c.id}"
+         ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)">
+      <div class="drag-handle" onmousedown="event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="width:14px;height:14px"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+      </div>
+      <div class="context-item-left" onclick="viewDetail('${c.id}')">
         <div class="context-item-title">
           <h4>${esc(c.title)}</h4>
           <span class="tag">${cat ? cat.name : c.category}</span>
@@ -1125,12 +1174,28 @@ function renderContexts() {
     filtered = filtered.filter(c => getGroupForCategory(c.category) === state.currentFilter);
   }
 
-  filtered.sort((a,b) => b.updatedAt - a.updatedAt);
+  // 検索フィルタ
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase();
+    filtered = filtered.filter(c =>
+      c.title.toLowerCase().includes(q) ||
+      c.content.toLowerCase().includes(q) ||
+      (c.tags || []).some(t => t.toLowerCase().includes(q))
+    );
+  }
+
+  // 並び順はカスタム順（order）を優先、なければ更新日
+  filtered.sort((a,b) => (a.order ?? 9999) - (b.order ?? 9999) || b.updatedAt - a.updatedAt);
 
   return `
     <div class="main-header">
       <div><h2>${title}</h2><p>${filtered.length}件のコンテキスト</p></div>
       <button class="btn btn-primary" onclick="openAddModal()">＋ 新規コンテキスト</button>
+    </div>
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="タイトル・内容・タグで検索..." value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+      ${state.searchQuery ? '<button class="search-clear" onclick="onSearch(\'\')">✕</button>' : ''}
     </div>
     ${!state.currentCategory ? `
       <div class="filter-bar">
@@ -1140,16 +1205,24 @@ function renderContexts() {
       </div>
     ` : ''}
     ${filtered.length ? `
-      <div class="context-list">${filtered.map(c => renderContextItem(c)).join('')}</div>
+      <div class="context-list" id="sortable-list">${filtered.map(c => renderContextItem(c)).join('')}</div>
     ` : `
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <h3>コンテキストがありません</h3>
-        <p>このカテゴリにはまだコンテキストが登録されていません</p>
-        <button class="btn btn-primary" onclick="openAddModal()">＋ コンテキストを追加</button>
+        <h3>${state.searchQuery ? '検索結果がありません' : 'コンテキストがありません'}</h3>
+        <p>${state.searchQuery ? '別のキーワードで試してみてください' : 'このカテゴリにはまだコンテキストが登録されていません'}</p>
+        ${state.searchQuery ? '' : '<button class="btn btn-primary" onclick="openAddModal()">＋ コンテキストを追加</button>'}
       </div>
     `}
   `;
+}
+
+function onSearch(q) {
+  state.searchQuery = q;
+  renderMain();
+  // 検索欄にフォーカスを戻す
+  const input = document.querySelector('.search-bar input');
+  if (input) { input.focus(); input.setSelectionRange(q.length, q.length); }
 }
 
 function setFilter(f) { state.currentFilter = f; renderMain(); }
@@ -1189,7 +1262,7 @@ function renderDetail() {
       </div>
     </div>
     ${c.tags?.length ? `<div style="display:flex;gap:4px;margin-bottom:16px">${c.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
-    <div class="detail-content">${esc(c.content)}</div>
+    <div class="detail-content">${esc(c.content).replace(/\n/g, '<br>')}</div>
   `;
 }
 
@@ -1591,6 +1664,80 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Copy All Contexts =====
+function copyAllContexts() {
+  if (!state.contexts.length) { showToast('コンテキストがありません'); return; }
+  const grouped = {};
+  state.contexts.forEach(c => {
+    const cat = ALL_CATEGORIES.find(cat => cat.id === c.category);
+    const key = cat ? cat.name : c.category;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(c);
+  });
+  let out = '# My Context\n\n';
+  for (const [cat, items] of Object.entries(grouped)) {
+    out += `## ${cat}\n\n`;
+    items.forEach(c => { out += `### ${c.title}\n\n${c.content}\n\n`; });
+  }
+  navigator.clipboard.writeText(out.trim()).then(() => showToast('全コンテキストをコピーしました'));
+}
+
+// ===== Drag & Drop =====
+let dragSrcId = null;
+
+function onDragStart(e) {
+  const item = e.target.closest('.context-item');
+  dragSrcId = item.dataset.id;
+  item.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcId);
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const item = e.target.closest('.context-item');
+  if (item && item.dataset.id !== dragSrcId) {
+    // 他のdrag-overを解除
+    document.querySelectorAll('.context-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+    item.classList.add('drag-over');
+  }
+}
+
+function onDragLeave(e) {
+  const item = e.target.closest('.context-item');
+  if (item) item.classList.remove('drag-over');
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  const targetItem = e.target.closest('.context-item');
+  if (!targetItem || !dragSrcId) return;
+  const targetId = targetItem.dataset.id;
+  if (dragSrcId === targetId) return;
+
+  const srcIdx = state.contexts.findIndex(c => c.id === dragSrcId);
+  const targetIdx = state.contexts.findIndex(c => c.id === targetId);
+  if (srcIdx < 0 || targetIdx < 0) return;
+
+  // 移動
+  const [moved] = state.contexts.splice(srcIdx, 1);
+  state.contexts.splice(targetIdx, 0, moved);
+
+  // orderを更新
+  state.contexts.forEach((c, i) => c.order = i);
+  saveState();
+  renderMain();
+  showToast('並び順を変更しました');
+}
+
+function onDragEnd(e) {
+  dragSrcId = null;
+  document.querySelectorAll('.context-item.dragging, .context-item.drag-over').forEach(el => {
+    el.classList.remove('dragging', 'drag-over');
+  });
 }
 
 // ===== Keyboard Shortcuts =====
